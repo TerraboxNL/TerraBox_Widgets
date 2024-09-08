@@ -1,35 +1,49 @@
 /*-------------------------------------------------------------------------------------------------
 
 
-       ///////  ////////  ///////   ///////    //////       //////     /////    //    //
-         //    //        //    //  //    //  //    //      //   //   //    //   // //
-        //    //////    ///////   ///////   ////////      //////    //    //     //
-       //    //        //  //    //  //    //    //      //    //  //    //    // //
-      //    ////////  //    //  //    //  //    //      ///////     /////    //   //
 
-     
-                           A R D U I N O   G U I   W I D G E T S
+       /////// ////// //////  //////   /////     /////    ////  //    //
+         //   //     //   // //   // //   //    //  //  //   // // //
+        //   ////   //////  //////  ///////    /////   //   //   //
+       //   //     //  //  // //   //   //    //   // //   //  // //
+      //   ////// //   // //   // //   //    //////    ////  //   //
 
 
-                             (C) 2024, cor.hofman@terrabox.nl
+                  A R D U I N O   G U I   W I D G E T S
 
-                       <Calibrator.cpp> - Library for GUI widgets.
-                          Created by Cor Hofman, June 30, 2024
-                            Released into the public domain
-                              as GitHub project: TBH_A_GUI
-                       under the GNU General public license V3.0
-                          
+
+                    (C) 2024, cor.hofman@terrabox.nl
+
+                <Calibrator.cpp> - Library for GUI widgets.
+                             June 30, 2024
+                     Released into the public domain
+               as GitHub project: TerraboxNL/TerraBox_Widgets
+                 under the GNU General public license V3.0
+
+      This program is free software: you can redistribute it and/or modify
+      it under the terms of the GNU General Public License as published by
+      the Free Software Foundation, either version 3 of the License, or
+      (at your option) any later version.
+
+      This program is distributed in the hope that it will be useful,
+      but WITHOUT ANY WARRANTY; without even the implied warranty of
+      MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+      GNU General Public License for more details.
+
+      You should have received a copy of the GNU General Public License
+      along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
  *------------------------------------------------------------------------------------------------*
  *
  *  C H A N G E  L O G :
  *  ============================================================================================
- *  P0001 - Initial release 
+ *  P0001 - Initial release
  *  ============================================================================================
  *
  *------------------------------------------------------------------------------------------------*/
 #include <TerraBox_Widgets.h>
 #include <Calibrator.h>
+#include <Dump.h>
 #include <Math.h>
 
 #define CALIBRATION_TOUCHES_NEEDED 3      // The number of calibration touches needed per marker
@@ -142,46 +156,21 @@ void Calibrator::explain() {
     //
     // Wait for the touch
     //
-    XY xy;
-    while (!getRawTouchData(&xy))
-      ;
+    waitForATap();
 
-    delay(3000);   // Ignore any jitter
+    uint16_t timeout = 10;
+    Screen.tft->print(F("\nCalibration will start in ")); Screen.tft->print(timeout); Screen.tft->println(F(" seconds..."));
+    Screen.tft->println(F("\nTap again to postpone the calibration..."));
 
-    Screen.tft->println(F("Calibration will start in 3 seconds..."));
-    Screen.tft->println(F("Tap again to postpone the calibration..."));
-
-
-    //
-    // Time out loop of 3.25 seconds
-    //
-    unsigned long timeout = 1000;   
-    uint16_t      counter = 0;
-    now                   = millis();
-    while (!getRawTouchData(&xy)) {
-
-      delay(10);
-
-      unsigned long waiting = millis() - now;
-      if (waiting > timeout) {
-        Screen.tft->print(++counter);
-        Screen.tft->print(" ");
-        timeout += 1000;
-      }
-
-      //
-      // Timeout so return
-      //
-      if (counter >= 3) {
+    if (! countDownWait(timeout)) {
         Screen.tft->fillScreen(BLACK);
-        return;
-      }
+    	return; // Start the calibration
     }
 
     //
     //
+    //
   } while ( true );
-
 }
 
 /*--------------------------------------------------------------------------------------------------
@@ -592,8 +581,8 @@ void Calibrator::calibrate(uint16_t* xCalibrationData, uint16_t* yCalibrationDat
     //
     //  Read in the earlier persisted calibration data
     //
-    persistentRead(ADR_TFT_CALIBR_X, (unsigned char*)xCalibrationData, xSizeBytes);
-    persistentRead(ADR_TFT_CALIBR_Y, (unsigned char*)yCalibrationData, ySizeBytes);
+    persistentRead(ADR_TFT_CALIBR_X, (char*)xCalibrationData, xSizeBytes);
+    persistentRead(ADR_TFT_CALIBR_Y, (char*)yCalibrationData, ySizeBytes);
 
     //
     // Make the calibration data available to the TouchHandler
@@ -751,7 +740,7 @@ void Calibrator::setCalibrated(bool b) {
 
 }
 
-/*--------------------------------------------------------------------------------------------------
+/**--------------------------------------------------------------------------------------------------
  *
  *  Check is some calibration parameters have changed
  *  - Screen width
@@ -975,29 +964,32 @@ void Calibrator::printMarkerBuffer(char* title, uint16_t* buffer, uint16_t size)
   Screen.tft->println(F("-------------------\n"));
   Screen.tft->println(F("Tap the screen to continue..."));
 
-  XY xy;
-  while(!getTouchData(&xy))
-        ;
+  waitForATap();
 
   Screen.tft->fillScreen(BLACK);
   
 }
 
-/*-------------------------------------------------------------------------------------------------
+/**----------------------------------------------------------------------------
  * 
- *  Showss data stored in EEPROM on the TFFT screen as diagnostics information.
+ *  Shows data stored in EEPROM on the TFFT screen as diagnostics information.
  *
- *------------------------------------------------------------------------------------------------*/
-void Calibrator::eepromData() {
+ *  @param b   If true the option is provided to skip the memory analyzer
+ *
+ *---------------------------------------------------------------------------*/
+void Calibrator::eepromData(bool b) {
 
   delay(1000);
-  Screen.tft->fillScreen(BLACK);
-  Screen.tft->setCursor(0,0);
-  Screen.tft->println("Tap within 3 seconds \nto see EEPROM data...");
-  if (!Touch.tapOrTimeout((unsigned long) 3000)) {
-    Screen.tft->fillScreen(BLACK);
-    return;
+  if (b) {
+	  Screen.tft->fillScreen(BLACK);
+	  Screen.tft->setCursor(0,0);
+	  Screen.tft->println(F("Tap within 3 seconds \nto see EEPROM data..."));
+	  if (!Touch.tapOrTimeout((unsigned long) 3000)) {
+	    Screen.tft->fillScreen(BLACK);
+	    return;
+	  }
   }
+
 
   Screen.tft->fillScreen(BLACK);
   //
@@ -1007,50 +999,59 @@ void Calibrator::eepromData() {
   if (!virgin) {
     uint8_t rot = Screen.tft->getRotation();
     Screen.tft->setRotation(1);
-    Screen.tft->println("\nEEPROM data areas:");
+    Screen.tft->println(F("\nEEPROM data areas:"));
 
     Screen.tft->println(F("\n      EPR16_TFT_X_W (screen width):\n"));
-    persistentDump(EPR16_TFT_X_W, 2);
+    dumpScreen.dumpEeprom(EPR16_TFT_X_W, 2);
     Screen.tft->fillScreen(BLACK);
     Screen.tft->setCursor(0,0);
 
     Screen.tft->println(F("\n      EPR16_TFT_Y_H (screen height):\n"));            // Contains 16 bit screen height
-    persistentDump(EPR16_TFT_Y_H, 2);
+    dumpScreen.dumpEeprom(EPR16_TFT_Y_H, 2);
     Screen.tft->fillScreen(BLACK);
     Screen.tft->setCursor(0,0);
  
     Screen.tft->println(F("\n      EPR8_TFT_CALIBRATED (0 if not calibrated yet, non-zero otherwise):\n")); // Contains 0 if not calibrated yet, non-zero otherwise
-    persistentDump(EPR8_TFT_CALIBRATED, 1);
+    dumpScreen.dumpEeprom(EPR8_TFT_CALIBRATED, 1);
     Screen.tft->fillScreen(BLACK);
     Screen.tft->setCursor(0,0);
 
     Screen.tft->println(F("\n      EPR8_CELL_S (Cell size used to calibrate):\n")); // Cell size used to calibrate
-    persistentDump(EPR8_CELL_S, 1);
+    dumpScreen.dumpEeprom(EPR8_CELL_S, 1);
     Screen.tft->fillScreen(BLACK);
     Screen.tft->setCursor(0,0);
 
     Screen.tft->print(F("\nEPR16_TFT_CALIBR_X_S (X-Axis calibration data size in # markers uint16_t): ")); Screen.tft->println(EEPROM_RD_INT(EPR16_TFT_CALIBR_X_S)); Screen.tft->println(); // Calibration data size in bytes for the X-axis 
-    persistentDump(EPR16_TFT_CALIBR_X_S, 2);
+    dumpScreen.dumpEeprom(EPR16_TFT_CALIBR_X_S, 2);
     Screen.tft->fillScreen(BLACK);
     Screen.tft->setCursor(0,0);
  
     Screen.tft->print(F("\nEPR16_TFT_CALIBR_Y_S (Y-Axis calibration data size in # markers uint16_t): ")); Screen.tft->println(EEPROM_RD_INT(EPR16_TFT_CALIBR_Y_S)); Screen.tft->println();   // Calibration data size in bytes for the Y axis
-    persistentDump(EPR16_TFT_CALIBR_Y_S, 2);
-    Screen.tft->fillScreen(BLACK);
+    dumpScreen.dumpEeprom(EPR16_TFT_CALIBR_Y_S, 2);
+    Screen.fillScreen(BLACK);
     Screen.tft->setCursor(0,0);
 
     Screen.tft->print(F("\n      &ADR_TFT_CALIBR_X (X-axis calibration data)= 0x")); Screen.tft->print(ADR_TFT_CALIBR_X, HEX); Screen.tft->print(F(", size: ")); Screen.tft->print(sizeof(uint16_t) * EEPROM_RD_INT(EPR16_TFT_CALIBR_X_S)); Screen.tft->println(F(" bytes\n"));
-    persistentDump(ADR_TFT_CALIBR_X, EEPROM_RD_INT(EPR16_TFT_CALIBR_X_S) * sizeof(uint16_t));
+    dumpScreen.dumpEeprom(ADR_TFT_CALIBR_X, EEPROM_RD_INT(EPR16_TFT_CALIBR_X_S) * sizeof(uint16_t));
     Screen.tft->fillScreen(BLACK);
     Screen.tft->setCursor(0,0);
 
     Screen.tft->print(F("\n      &ADR_TFT_CALIBR_Y (Y-axis calibration data)= 0x")); Screen.tft->print(ADR_TFT_CALIBR_Y, HEX); Screen.tft->print(F(", size: ")); Screen.tft->print(sizeof(uint16_t) * EEPROM_RD_INT(EPR16_TFT_CALIBR_Y_S)); Screen.tft->println(F(" bytes\n"));
-    persistentDump(ADR_TFT_CALIBR_Y, EEPROM_RD_INT(EPR16_TFT_CALIBR_Y_S) * sizeof(uint16_t));
+    dumpScreen.dumpEeprom(ADR_TFT_CALIBR_Y, EEPROM_RD_INT(EPR16_TFT_CALIBR_Y_S) * sizeof(uint16_t));
     Screen.tft->fillScreen(BLACK);
     Screen.tft->setCursor(0,0);
 
     Screen.tft->setRotation(rot);
   }
+}
+
+/**----------------------------------------------------------------------------
+ *
+ *  Starts the eeprom data analyzer offering the option to skip it.
+ *
+ *---------------------------------------------------------------------------*/
+void Calibrator::eepromData() {
+	eepromData(true);
 }
 
 /*------------------------------------------------------------------------------
@@ -1079,7 +1080,7 @@ void Calibrator::diagnostics() {
   // Do we want to enter diagnostics?
   //
   Screen.tft->setCursor(0,0);
-  Screen.tft->println("Tap within 3 seconds \nto enter diagnostics mode...");
+  Screen.tft->println(F("Tap within 3 seconds \nto enter diagnostics mode..."));
   if (! Touch.tapOrTimeout((unsigned long)3000)) {
     delay(200);
     Screen.tft->fillScreen(BLACK);

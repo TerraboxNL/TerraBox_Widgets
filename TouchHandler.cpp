@@ -1,37 +1,51 @@
 /*-------------------------------------------------------------------------------------------------
 
 
-       ///////  ////////  ///////   ///////    //////       //////     /////    //    //
-         //    //        //    //  //    //  //    //      //   //   //    //   // //
-        //    //////    ///////   ///////   ////////      //////    //    //     //
-       //    //        //  //    //  //    //    //      //    //  //    //    // //
-      //    ////////  //    //  //    //  //    //      ///////     /////    //   //
+       /////// ////// //////  //////   /////     /////    ////  //    //
+         //   //     //   // //   // //   //    //  //  //   // // //
+        //   ////   //////  //////  ///////    /////   //   //   //
+       //   //     //  //  // //   //   //    //   // //   //  // //
+      //   ////// //   // //   // //   //    //////    ////  //   //
 
      
-                           A R D U I N O   G U I   W I D G E T S
+                 A R D U I N O   D I S T A N C E  S E N S O R S
 
 
-                             (C) 2024, cor.hofman@terrabox.nl
+                 (C) 2024, C. Hofman - cor.hofman@terrabox.nl
 
-                       <TouchHandler.cpp> - Library for GUI widgets.
-                          Created by Cor Hofman, June 30, 2024
-                            Released into the public domain
-                              as GitHub project: TBH_A_GUI
-                       under the GNU General public license V3.0
+               <TouchHandler.cpp> - Library forGUI Widgets.
+                              16 Aug 2024
+                      Released into the public domain
+                as GitHub project: TerraboxNL/TerraBox_Widgets
+                   under the GNU General public license V3.0
                           
+      This program is free software: you can redistribute it and/or modify
+      it under the terms of the GNU General Public License as published by
+      the Free Software Foundation, either version 3 of the License, or
+      (at your option) any later version.
 
- *------------------------------------------------------------------------------------------------*
+      This program is distributed in the hope that it will be useful,
+      but WITHOUT ANY WARRANTY; without even the implied warranty of
+      MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+      GNU General Public License for more details.
+
+      You should have received a copy of the GNU General Public License
+      along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+ *---------------------------------------------------------------------------*
  *
  *  C H A N G E  L O G :
- *  ============================================================================================
+ *  ==========================================================================
  *  P0001 - Initial release 
- *  ============================================================================================
+ *  ==========================================================================
  *
- *------------------------------------------------------------------------------------------------*/
+ *--------------------------------------------------------------------------*/
 #include <TerraBox_Widgets.h>
+#include <persistence.h>
 
-#define DEBUG	          0
+#define DEBUG	           0
 #define DEBUG_DIGEST       0
+#define DEBUG_NORMALIZE    0
 
 #define XY_DELTA_THRESHOLD 5	// Ignore touch XY's which are LEQ than this
 
@@ -61,40 +75,7 @@ void TouchHandler::exec() {
  *
  *------------------------------------------------------------------------------------------------*/
 bool TouchHandler::tapOrTimeout(long timeout) {
-
-    //
-    // Return the coordinates in
-    //
-    XY xy;
-
-    //
-    //  Remember when the timeout period started.
-    //
-    unsigned long now = millis();
-    long      seconds = 0;
-    
-    //
-    //  Stay in the loop waiting until the timeout
-    //
-    while (millis() - now < timeout) {
-
-      //
-      // 
-      unsigned long now2 = millis();
-      while (millis() - now2 < 1000){
-        if (getRawTouchData(&xy))
-          return true;
-      }
-
-      Screen.tft->print(++seconds);
-      Screen.tft->print(" ");
-
-    }
-
-    //
-    // If we are here then we timed out.
-    //
-    return false;
+	return countDownWait(timeout/1000);
 }
 
 /*---------------------------------------------------------------------------------------
@@ -156,8 +137,9 @@ void TouchHandler::setMarkerDistance(uint16_t distance) {
  *
  *-------------------------------------------------------------------------------------*/
 uint16_t TouchHandler::normalize(uint16_t raw, uint16_t* data, uint16_t size, float avgRawMarkerDistance) {
+#if DEBUG_NORMALIZE
   Serial.print(F("Raw: ")); Serial.println(raw);
-
+#endif
   //
   // Get the rotation
   //
@@ -188,8 +170,10 @@ uint16_t TouchHandler::normalize(uint16_t raw, uint16_t* data, uint16_t size, fl
   //
   int16_t markerIndex = round((float) (raw - minimum) / avgRawMarkerDistance);
 
+#if DEBUG_NORMALIZE
   Serial.print(F("Raw: ")); Serial.println(raw);
   Serial.print(F("Calculated markerIndex: ")); Serial.println(markerIndex);
+#endif
 
   //
   //  Check if we have the right cell.
@@ -199,9 +183,16 @@ uint16_t TouchHandler::normalize(uint16_t raw, uint16_t* data, uint16_t size, fl
   //
   if (markerIndex >= size) {
     raw      = data[size-1];
+
+#if DEBUG_NORMALIZE
     Serial.print(F("Raw corrected: ")); Serial.println(raw);
+#endif
+
     markerIndex = size-1;
+
+#if DEBUG_NORMALIZE
     Serial.print(F("markerIndex >= size: ")); Serial.println(markerIndex);
+#endif
   }
 
   //
@@ -228,8 +219,11 @@ uint16_t TouchHandler::normalize(uint16_t raw, uint16_t* data, uint16_t size, fl
       while (markerIndex < size && data[markerIndex] <= raw) {
         markerIndex++;
       }
-      markerIndex--;  // Adjust for the last one where raw < data[markerIndex] 
+      markerIndex--;  // Adjust for the last one where raw < data[markerIndex]
+
+#if DEBUG_NORMALIZE
       Serial.print(F("Upwards search - index: ")); Serial.println(markerIndex);
+#endif
     }
 
     //
@@ -251,8 +245,9 @@ uint16_t TouchHandler::normalize(uint16_t raw, uint16_t* data, uint16_t size, fl
       while (markerIndex >= 0 && data[markerIndex] > raw) {
         markerIndex--;
       }
-
+#if DEBUG_NORMALIZE
       Serial.print(F("Downwards search - index: ")); Serial.println(markerIndex);
+#endif
     }
   }
 
@@ -263,7 +258,9 @@ uint16_t TouchHandler::normalize(uint16_t raw, uint16_t* data, uint16_t size, fl
   //  Then return highest possible pixel coordinate
   // 
   if (markerIndex == size - 1) {
+#if DEBUG_NORMALIZE
      Serial.print(F("Result (Max coordinate): ")); Serial.println((markerDistance * (size-1))-1);
+#endif
      return (markerDistance * (size-1))-1;
   }
 
@@ -295,6 +292,7 @@ uint16_t TouchHandler::normalize(uint16_t raw, uint16_t* data, uint16_t size, fl
   //  returned normalised pixel coordinate = 68 -----------'  
   //
 
+#if DEBUG_NORMALIZE
   Serial.print(F("data[markerIndex]  : ")); Serial.println(data[markerIndex]);
   Serial.print(F("data[markerIndex+1]: ")); Serial.println(data[markerIndex+1]);
   Serial.print(F("data[markerIndex+1] - data[markerIndex]")); Serial.println(data[markerIndex+1] - data[markerIndex]);
@@ -304,12 +302,16 @@ uint16_t TouchHandler::normalize(uint16_t raw, uint16_t* data, uint16_t size, fl
   Serial.print(F("(B) raw - data[markerIndex] = ")); Serial.println(raw - data[markerIndex]);
   Serial.print(F("(C) data[markerIndex+1] - data[markerIndex] = ")); Serial.println(data[markerIndex+1] - data[markerIndex]);
   Serial.print(F("20 * ( B / C ) = ")); Serial.println(markerDistance * ( (float)(raw - data[markerIndex]) / (float)(data[markerIndex+1] - data[markerIndex]) ));
+#endif
+
   uint16_t result = (markerDistance * markerIndex +                   // ( celIndex * 20 pixels) +            
            round( (float)markerDistance *                              //     ( 20 pixels *
              ( (float)(raw - data[markerIndex]) /                         //        ( raw part within the indexed raw data cel /    
                  (float)(data[markerIndex+1] - data[markerIndex]) ) ) ); //            raw value range of indexed raw data cel) )
 
+  #if DEBUG_NORMALIZE
   Serial.print(F(" A * 20 + (20 * (B / C)) = ")); Serial.println(result);
+#endif
 
   return result;
 }
@@ -321,9 +323,16 @@ uint16_t TouchHandler::normalize(uint16_t raw, uint16_t* data, uint16_t size, fl
  *-------------------------------------------------------------------------------------*/
 void TouchHandler::normalize(XY* touch) {
 
+#if DEBUG_NORMALIZE
   Serial.println(F("X ---> "));
+#endif
+
   touch->x = normalize(touch->x, xCalibration, xSize, rawAvgXMarkerDistance);
+
+#if DEBUG_NORMALIZE
   Serial.println(F("Y ---> "));
+#endif
+
   touch->y = normalize(touch->y, yCalibration, ySize, rawAvgYMarkerDistance);
 
 }
@@ -338,8 +347,30 @@ void TouchHandler::normalize(XY* touch) {
 bool  TouchHandler::getTouch(XY* touchData) {
   bool pressedNow = getRawTouchData(touchData);	// Call C-function to gather the data
 
-  if (getRawTouchData(touchData)) {
+  if (pressedNow) {
     normalize(touchData);
+
+    //
+    //  Convert the x and y coordinates depending on the screen rotation
+    //
+    uint16_t tmp;
+    switch (Screen.tft->getRotation()) {
+    case 0:
+    	touchData->y = Screen.height - touchData->y;
+    	break;
+    case 1:
+    	tmp          = touchData->x;
+    	touchData->y = Screen.height - touchData->y;
+    	touchData->x = Screen.width  - tmp;
+    	break;
+    case 2:
+    	touchData->x = Screen.width - touchData->x;
+    	break;
+    case 3:
+    	// No conversion needed
+    	break;
+    }
+
     return true;
   }
 
@@ -352,19 +383,29 @@ bool  TouchHandler::getTouch(XY* touchData) {
 /*----------------------------------------------------------------------------------------
  *
  *  Returns true if the screen is currently touched.
- *  Calling this method will also detect it an generate an UNTOUCH event and dispatches
+ *  Calling this method will also detect it and generate an UNTOUCH event and dispatches
  *  that event for it.
  *
  *--------------------------------------------------------------------------------------*/
-TouchEvent* TouchHandler::digest( ){
+bool TouchHandler::digest( ){
 
   /**** G E T   F R E S H   T O U C H   D A T A *****************************************/
 
   XY touchData;			                    // Structure in which touch data is returned
   bool pressedNow = getTouch(&touchData);	// Call C-function to gather the data
-   
+  uint32_t now    = millis();
+
+  //
+  //  Prevent spurious events
+  //
+  if (now - lastTimestamp < 100) {
+	 return false;
+  }
+
   //
   // Ignore NON-PRESSED-> to NON-PRESSED state transitions
+  // But check to see how long ther has been no activity.
+  // This is too support and inactivity timer and screen darkening.
   //
   // Only allowing transitions:
   //   NON_PRESSED -> PRESSED
@@ -380,23 +421,37 @@ TouchEvent* TouchHandler::digest( ){
 	//
 	// Handle inactivity
 	//
-	if (Screen.isVisible() && millis() - lastTimestamp > inactivityTimeout) {
-		Screen.setVisible(false);
-		TouchEvent event = TouchEvent(TouchEvents::INACTIVITY_TIMEOUT, millis(), 0, 0, &Screen);
-		Screen.dispatch(&event);
+	if (Screen.isVisible() && now - lastTimestamp > inactivityTimeout) {
+		event = TouchEvents::GOTO_SLEEP;
+		TouchEvent sleep = TouchEvent(event, now, 0, 0, &Screen);
+		Screen.dispatch(&sleep);
 	}
 
-    return nullptr;
+    return false;    // Ignore this state for anybody else.
   }
-  else {
+  //
+  //  Detection a state transition from NON_PRESSED -> PRESSED.
+  //
+  //  This potentially terminates a period of inactivity.
+  //  If that is the case, we need to signal that.
+  //
+  else if (!pressed && pressedNow) {
+	 //
+	 //  If screen is currently invisible, inactivity period is terminated
+	 //
 	 if (! Screen.isVisible()) {
-	     TouchEvent event = TouchEvent(TouchEvents::WAKEUP, millis(), 0, 0, &Screen);
-	     Screen.dispatch(&event);
+		 lastTimestamp = now; // Prevent we fall asleep at the next cycle !!!
+		 event = TouchEvents::WAKEUP;
+	     TouchEvent wakeUp(event, now, 0, 0, &Screen);
+	     Screen.dispatch(&wakeUp);   // Dispatch WAKEUP event for it.
+
+	     return false;          // Ignore the touch for anybody else
 	 }
   }
 
+
   //
-  //  Calculate the de delta of the the current x and y, found in the touchData struct,
+  //  Calculate the  delta of the the current x and y, found in the touchData struct,
   //  and the last saved touch coordinates in x and y variables.
   //  If the delta (dx and dy) is too insignificant then we ignore this event
   //
@@ -406,7 +461,7 @@ TouchEvent* TouchHandler::digest( ){
   if (dy < 0) dy = -dy;
 
   if (dx <= XY_DELTA_THRESHOLD && dy <= XY_DELTA_THRESHOLD) {
-    return nullptr;
+    return false;
   }
 
   #if DEBUG_DIGEST
@@ -427,7 +482,12 @@ TouchEvent* TouchHandler::digest( ){
   // It is important to realise that the pressed, x, y still contains
   // the data of the PREVIOUS RELEVANT state we were in !!!!!
   //
+
   saveState();
+
+
+
+
 
   #if DEBUG_DIGEST
     Serial.print(F("TouchHandler::digest() L A S T         Pressed: "));
@@ -465,16 +525,48 @@ TouchEvent* TouchHandler::digest( ){
  /***** D I G E S T   T O U C H   D A T A **********************************************/
 
   event      = TouchEvents::NONE;	// By default we assume no event
-  timestamp  = millis();		// Register a timestamp
+  timestamp  = millis();		    // Register a timestamp
 
   //------------------------------------------------------------------
   //
   //  If pressed handle it and generate events for it
   //
-  //------------------------------------------------------------------  
+  //------------------------------------------------------------------
   if (pressed) {
 
-    source    = Screen.match(x, y);			// Obtain the source widget
+    source    = Screen.match(x, y); // Obtain the source widget
+
+    #if DEBUG_DIGEST
+    Serial.print(F("TouchHandler::digest() M A T C H I N G: "));
+    if (source) {
+      Serial.print(F(" Source: 0x")); Serial.print((uint32_t)source,HEX);
+	  source->path();
+	  delay(1000);
+    } else {
+        Serial.print(F(" No source was matched for (x,y): ("));Serial.print(x);Serial.print(F(","));Serial.print(y); Serial.println(F(")"));
+    }
+    #endif
+
+    //
+    //  Manage out of scope and in scope event, implying that
+    //  a next touch or draw can make a widget in or out of scope
+    //  of the touching device.
+    //
+
+    if (source != lastSource) {
+
+    	if (lastSource) {
+    	  event = TouchEvents::OUT_OF_SCOPE;
+    	  TouchEvent oos(event, timestamp, x, y, lastSource);
+    	  Screen.dispatch(&oos);
+    	}
+
+    	if (source) {
+    	  event = TouchEvents::IN_SCOPE;
+    	  TouchEvent is(event, timestamp, x, y, source);
+    	  Screen.dispatch(&is);
+    	}
+    }
 
     //
     //  T O U C H   E V E N T
@@ -487,10 +579,10 @@ TouchEvent* TouchHandler::digest( ){
       #endif
 
       event    = TouchEvents::TOUCH;			// Set the TOUCH event type
-    
+
       TouchEvent touch(event, timestamp, x, y, source);	// Create the TOUCH event
       Screen.dispatch(&touch);				// Dispatch it
-      return &touch;
+      return pressedNow;
     }
 
     //
@@ -503,56 +595,65 @@ TouchEvent* TouchHandler::digest( ){
       #endif
 
     event     = TouchEvents::DRAW;			// Set the DRAW event type
-    
-    TouchEvent touch(event, timestamp, x, y, source);	// Create the TOUCH event
-    Screen.dispatch(&touch);				// Dispatch it
-    return &touch;
+
+    TouchEvent draw(event, timestamp, x, y, source);	// Create the TOUCH event
+    Screen.dispatch(&draw);				// Dispatch it
+    return pressedNow;
   }
+
 
   //------------------------------------------------------------------
   //  At this point the touch panel is currently not pressed
   //  So handle the no press situation.
   //------------------------------------------------------------------
+  if (lastPressed) {
   
-  //
-  //  U N T O U C H   E V E N T
-  //  -------------------------
-  //  Happens on a PRESSED -> NON-PRESSED transition.
-  //  If the last event we generated was a TOUCH or a DRAW !!!!!
-  //  Only in that case we generate an UNTOUCH event.
-  //
-  //  This event signals the fact that the source object is no longer pressed upon.
-  //
-  switch (lastEvent) {
-    case TouchEvents::TOUCH:
-    case TouchEvents::DRAW: {
+    //
+    //  U N T O U C H   E V E N T
+    //  -------------------------
+    //  Happens on a PRESSED -> NON-PRESSED transition.
+    //  If the last event we generated was a TOUCH or a DRAW !!!!!
+    //  Only in that case we generate an UNTOUCH event.
+    //
+    //  This event signals the fact that the source object is no longer pressed upon.
+    //
+    switch (lastEvent) {
+      case TouchEvents::TOUCH:
+      case TouchEvents::DRAW: {
 
-      if (lastSource) {
-        #if DEBUG_DIGEST
-          Serial.println(F("TouchHandler::digest() UNTOUCH detected"));
-        #endif
+        if (lastSource) {
+          source = lastSource;  // lastSource is now source again.
+          #if DEBUG_DIGEST
+            Serial.println(F("TouchHandler::digest() UNTOUCH detected"));
+          #endif
    
-        event  = TouchEvents::UNTOUCH;	// Set the UNTOUCH event type       
+          event  = TouchEvents::UNTOUCH;	// Set the UNTOUCH event type
+          TouchEvent untouch(event, timestamp, lastX, lastY, source);
+          Screen.dispatch(&untouch);
 
-        TouchEvent touch(event, timestamp, lastX, lastY, lastSource);
-        Screen.dispatch(&touch);
-        return &touch;
+          event  = TouchEvents::OUT_OF_SCOPE;
+          TouchEvent oos(event, timestamp, lastX, lastY, source);
+          Screen.dispatch(&oos);
+
+          source = nullptr;     // Back to reality, no source was pressed on
+          return pressedNow;
+        }
+
+        break;
       }
 
-      break;
+      default:
+        // Do nothing
+        break;
     }
-
-    default:
-      // Do nothing
-      break;
   }
   
-  return nullptr;
+  return pressedNow;
 }
 
 /*------------------------------------------------------------------------------
  *
- *  Copies the current timestamp, event, x, y and source as the last event data
+ *  Copies the current time stamp, event, x, y and source as the last event data
  *
  *----------------------------------------------------------------------------*/
 void TouchHandler::saveState() {

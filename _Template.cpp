@@ -8,14 +8,14 @@
       //   ////// //   // //   // //   //    //////    ////  //   //
 
      
-                 A R D U I N O   D I S T A N C E  S E N S O R S
+                  A R D U I N O   G U I   W I D G E T S
 
 
                  (C) 2024, C. Hofman - cor.hofman@terrabox.nl
 
-               <RectangleWidget.h> - Library forGUI Widgets.
-                              16 Aug 2024
-                     Released into the public domain
+               <DistanceMonitor.h> - Library forGUI Widgets.
+                               16 Aug 2024
+                       Released into the public domain
                 as GitHub project: TerraboxNL/TerraBox_Widgets
                    under the GNU General public license V3.0
                           
@@ -41,52 +41,3 @@
  *
  *--------------------------------------------------------------------------*/
 #include <TerraBox_Widgets.h>
-
-#ifndef RECTANGLEWIDGET_h
-#define RECTANGLEWIDGET_h
-
-#define RECTANGLE_SQUARE   1
-#define RECTANGLE_ROUNDED  2
-
-#define RECTANGLE_RADIUS   4
-
-/*============================================================================
- *  R E C T A N G L E  W I D G E T
- *===========================================================================*/
-class  RectangleWidget : public Widget {
-  public:
-	uint16_t  type;             // form factor
-    uint16_t  stroke;           // Stroke size
-    uint16_t  bgColor;          // Background color
-    int16_t   strokeColor;      // Stroke color
-
-             RectangleWidget(
-                 Widget*  parent,
-				 uint16_t pType,
-                 int16_t  px,       int16_t py,
-                 uint16_t pWidth,   uint16_t pHeight,
-                 uint16_t pBgColor,
-                 uint16_t pStroke,  uint16_t pStrokeColor);
-
-             RectangleWidget(
-                 Widget*  parent,
-                 int16_t  px,       int16_t py, 
-                 uint16_t pWidth,   uint16_t pHeight, 
-                 uint16_t pBgColor, 
-                 uint16_t pStroke,  uint16_t pStrokeColor);
-
-    void         init(uint16_t pType,
-             	      uint16_t pBgColor,
-             	      uint16_t pStroke,
-             		  uint16_t pStrokeColor);
-
-    uint16_t     getStroke();
-    uint16_t     getBgColor();
-
-    virtual void draw();
-    virtual void drawInverted();
-    virtual void redraw();
-//    virtual void onEvent(TouchEvent* event);
-};
-
-#endif

@@ -13,9 +13,9 @@
 
                  (C) 2024, C. Hofman - cor.hofman@terrabox.nl
 
-               <RectangleWidget.h> - Library forGUI Widgets.
+               <ValueConverter.h> - Library forGUI Widgets.
                               16 Aug 2024
-                     Released into the public domain
+                       Released into the public domain
                 as GitHub project: TerraboxNL/TerraBox_Widgets
                    under the GNU General public license V3.0
                           
@@ -42,51 +42,50 @@
  *--------------------------------------------------------------------------*/
 #include <TerraBox_Widgets.h>
 
-#ifndef RECTANGLEWIDGET_h
-#define RECTANGLEWIDGET_h
+#ifndef VALUE_CONVERTER_H_
+#define VALUE_CONVERTER_H_
 
-#define RECTANGLE_SQUARE   1
-#define RECTANGLE_ROUNDED  2
+/*================================================================================================
+ *
+ *  Class with which converts field data values into numbers GUI widgets can crunch and represent
+ *
+ *==============================================================================================*/
+class ValueConverter {
+  private:
+    int16_t int16MinRaw;           // The raw minimum
+    int16_t int16MaxRaw;           // The raw maximum
+    int16_t int16RangeRaw;         // The range of the raw value (e.g. max - min)
 
-#define RECTANGLE_RADIUS   4
+    int16_t int16MinClipRaw;       // The raw minimum
+    int16_t int16MaxClipRaw;       // The raw maximum
 
-/*============================================================================
- *  R E C T A N G L E  W I D G E T
- *===========================================================================*/
-class  RectangleWidget : public Widget {
-  public:
-	uint16_t  type;             // form factor
-    uint16_t  stroke;           // Stroke size
-    uint16_t  bgColor;          // Background color
-    int16_t   strokeColor;      // Stroke color
+    float    conversionFactor;     // The conversionFactor used for raw -> target
 
-             RectangleWidget(
-                 Widget*  parent,
-				 uint16_t pType,
-                 int16_t  px,       int16_t py,
-                 uint16_t pWidth,   uint16_t pHeight,
-                 uint16_t pBgColor,
-                 uint16_t pStroke,  uint16_t pStrokeColor);
+    int16_t int16MinTarget;        // The target minimum
+    int16_t int16MaxTarget;        // The target maximum
+    int16_t int16RangeTarget;      // The range of the target value (e.g. max - min)
 
-             RectangleWidget(
-                 Widget*  parent,
-                 int16_t  px,       int16_t py, 
-                 uint16_t pWidth,   uint16_t pHeight, 
-                 uint16_t pBgColor, 
-                 uint16_t pStroke,  uint16_t pStrokeColor);
+    int16_t int16MinClipTarget;    // The target clip minimum
+    int16_t int16MaxClipTarget;    // The target clip maximum
 
-    void         init(uint16_t pType,
-             	      uint16_t pBgColor,
-             	      uint16_t pStroke,
-             		  uint16_t pStrokeColor);
+    float   conversionFactorInv;   // The inverted conversionFactor used for target -> raw
 
-    uint16_t     getStroke();
-    uint16_t     getBgColor();
+    public:
 
-    virtual void draw();
-    virtual void drawInverted();
-    virtual void redraw();
-//    virtual void onEvent(TouchEvent* event);
+      ValueConverter();
+      ValueConverter(int16_t pMinRaw,    int16_t pMaxRaw,
+    		         int16_t pMinTarget, int16_t pMaxTarget);
+
+      void     setConversionData(int16_t pMinRaw,    int16_t pMaxRaw,
+    		                     int16_t pMinTarget, int16_t pMaxTarget);
+
+      uint16_t convert2Target(int16_t valueRaw);
+      uint16_t convert2Raw(int16_t valueTarget);
+
+      void updateMinRaw(int16_t min);
+      void updateMaxRaw(int16_t max);
+      void calculateConversionFactors();
+
 };
 
 #endif

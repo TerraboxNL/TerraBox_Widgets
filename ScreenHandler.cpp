@@ -1,40 +1,55 @@
-/*--------------------------------------------------------------------------------------------------
+/*-------------------------------------------------------------------------------------------------
 
-       ///////  ////////  ///////   ///////    //////       //////     /////    //    //
-         //    //        //    //  //    //  //    //      //   //   //    //   // //
-        //    //////    ///////   ///////   ////////      //////    //    //     //
-       //    //        //  //    //  //    //    //      //    //  //    //    // //
-      //    ////////  //    //  //    //  //    //      ///////     /////    //   //
+
+       /////// ////// //////  //////   /////     /////    ////  //    //
+         //   //     //   // //   // //   //    //  //  //   // // //
+        //   ////   //////  //////  ///////    /////   //   //   //
+       //   //     //  //  // //   //   //    //   // //   //  // //
+      //   ////// //   // //   // //   //    //////    ////  //   //
 
      
-                           A R D U I N O   G U I   W I D G E T S
+                 A R D U I N O   D I S T A N C E  S E N S O R S
 
 
-                             (C) 2024, cor.hofman@terrabox.nl
+                 (C) 2024, C. Hofman - cor.hofman@terrabox.nl
 
-                       <Source file name> - Library for GUI widgets.
-                          Created by Cor Hofman, June 30, 2024
-                            Released into the public domain
-                              as GitHub project: TBH_A_GUI
-                       under the GNU General public license V3.0
+               <ScreenHandler.cpp> - Library forGUI Widgets.
+                              16 Aug 2024
+                      Released into the public domain
+                as GitHub project: TerraboxNL/TerraBox_Widgets
+                   under the GNU General public license V3.0
                           
+      This program is free software: you can redistribute it and/or modify
+      it under the terms of the GNU General Public License as published by
+      the Free Software Foundation, either version 3 of the License, or
+      (at your option) any later version.
 
- *------------------------------------------------------------------------------------------------*
+      This program is distributed in the hope that it will be useful,
+      but WITHOUT ANY WARRANTY; without even the implied warranty of
+      MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+      GNU General Public License for more details.
+
+      You should have received a copy of the GNU General Public License
+      along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+ *---------------------------------------------------------------------------*
  *
  *  C H A N G E  L O G :
- *  ============================================================================================
+ *  ==========================================================================
  *  P0001 - Initial release 
- *  ============================================================================================
+ *  ==========================================================================
  *
- *------------------------------------------------------------------------------------------------*/
+ *--------------------------------------------------------------------------*/
 
 #include <TerraBox_Widgets.h>
 #include <Calibrator.h>
+#include <Dump.h>
 
 //#include <SoftKeyboardWidget.h>
 
 #define DEBUG_DISPATCH	0
-#define DEBUG_BEGIN	0
+#define DEBUG_BEGIN	    0
+#define DEBUG_ON_EVENT  0
 
 /*==============================================================================
  *
@@ -50,7 +65,10 @@
  *
  *---------------------------------------------------------------------------*/
 ScreenHandler::ScreenHandler(MCUFRIEND_kbv* pTftScreen) 
-      : Widget(nullptr, 0, 0, 0, 0) {
+      : Widget(nullptr, 0, 0, pTftScreen->width(), pTftScreen->height()) {
+
+  strcpy(nameId, "Screen");
+  widgetSize = sizeof(ScreenHandler);
 
   //
   //  Remember the TFT screen driver.
@@ -60,7 +78,8 @@ ScreenHandler::ScreenHandler(MCUFRIEND_kbv* pTftScreen)
   //
   //  Initialize the queue for dispatching later events
   //
-  laterQueue = nullptr;
+  laterQueue     = nullptr;
+  laterQueueLast = nullptr;
 
   //
   //  Add the keyboard to the widget tree.
@@ -68,16 +87,16 @@ ScreenHandler::ScreenHandler(MCUFRIEND_kbv* pTftScreen)
   #ifdef SOFTKEYBOARDWIDGET_h
     tty.setParent(this);
   #endif
+
 }
 
-/*-----------------------------------------------------------------------------
+/**----------------------------------------------------------------------------
  *
- *  This method has to called during the setup() function of Arduino.
- *  It initialises the the Screen object driving the screen.
- *  To call this method use :
+ *  Basic TFT screen initialization without any extras like calibration,
+ *  EEPROM analyzer, etc.
  *
  *  Example:
- *  ------------------------------------ 
+ *  ------------------------------------
  *  setup () {
  *  //  Some code .....
  *
@@ -88,36 +107,48 @@ ScreenHandler::ScreenHandler(MCUFRIEND_kbv* pTftScreen)
  *
  *---------------------------------------------------------------------------*/
 void ScreenHandler::begin() {
+	  //
+	  // Initialize TFT screen
+	  //
+	  uint16_t ID = tft->readID();
 
-  #if DEBUG_BEGIN
-    if (child)
-      Serial.println(F("ScreenHandler::begin() YES it has a child"));
-    else
-      Serial.println(F("ScreenHandler::begin() NO it has no child"));
-  #endif
+	  #if DEBUG_BEGIN
+	    Serial.print(F("ScreenHandler::begin ID = 0x"));
+	    Serial.println(ID, HEX);
+	  #endif
 
+	  if (ID == 0xD3D3) ID = 0x9481; // write-only shield
+	  tft->begin(ID);
+
+	  width  = tft->width();
+	  height = tft->height();
+
+	  tft->fillScreen(BLACK);
+
+}
+
+/**-----------------------------------------------------------------------------
+ *
+ *  This method is to be called if you need to include screen calibration and
+ *  some diagnostics of EEPROM memory areas.
+ *
+ *  Example:
+ *  ------------------------------------ 
+ *  setup () {
+ *  //  Some code .....
+ *
+ *      Screen.beginFull();
+ *
+ *  //  Some more code ....
+ *  }
+ *
+ *---------------------------------------------------------------------------*/
+void ScreenHandler::beginFull() {
 
   //
-  // Initialize TFT screen
+  //  Perform minimum TFT initialization
   //
-  uint16_t ID = tft->readID();
-
-  #if DEBUG_BEGIN
-    Serial.print(F("ScreenHandler::begin ID = 0x"));
-    Serial.println(ID, HEX);
-  #endif
-
-  if (ID == 0xD3D3) ID = 0x9481; // write-only shield
-  tft->begin(ID);
-
-  width  = tft->width();
-  height = tft->height();
-
-  //
-  //  Clear the screen
-  //
-  tft->fillScreen(BLACK);
-
+  begin();
 
   //=============================================================================
   //  Start up the screen and calibration
@@ -127,9 +158,13 @@ void ScreenHandler::begin() {
   Screen.tft->setRotation(0);
  
   //
-  // Create the calibrator
+  // Create the calibrator.
   //
-  Calibrator calibrator(&Screen, Screen.tft->width(), Screen.tft->height(), CELLSIZE);
+  // NOTE:
+  // It does get the Screen as its parent, since its life cycle is local
+  // to this method. As it is created by allocating it on the stack.
+  //
+  Calibrator calibrator(nullptr, Screen.tft->width(), Screen.tft->height(), CELLSIZE);
 
   //
   // If virgin memory, then request a calibration
@@ -140,7 +175,12 @@ void ScreenHandler::begin() {
   }
 
   //
-  //  Show Splash screen
+  //  Show Splash screen.
+  //
+  //  NOTE:
+  //  Also the splash screen does not have a parent.
+  //  It is also created by allocating stack space.
+  //  Therefore it is also short lived widget.
   //
   Splash splash;
   splash.draw();
@@ -194,6 +234,65 @@ void ScreenHandler::begin() {
 
   calibrator.diagnostics();
 
+  //
+  //  Remove the calibrator from the list, since it is allocated on the stack
+  //  and will not be corrupted by other method invocations on the stack.
+  //
+  calibrator.remove();
+
+  //
+  // Draw the widget tree
+  //
+//  draw();
+}
+
+/**----------------------------------------------------------------------------
+ *
+ *  Start up and show EEPROM memory
+ *
+ *  Example:
+ *  ------------------------------------
+ *  setup () {
+ *  //  Some code .....
+ *
+ *      Screen.begin();
+ *      Screen.analyzeEEPROM();
+ *
+ *  //  Some more code ....
+ *  }
+ *
+ *
+ *---------------------------------------------------------------------------*/
+void ScreenHandler::analyzeEEPROM() {
+
+      //
+	  //
+	  //
+	  Screen.tft->setRotation(0);
+
+	  //
+	  // Create the calibrator.
+	  //
+	  // NOTE:
+	  // It does NOT get the Screen as its parent, since its life cycle is local
+	  // to this method. As it is created by allocating it on the stack.
+	  //
+	  Calibrator calibrator(nullptr, Screen.tft->width(), Screen.tft->height(), CELLSIZE);
+
+	  //
+	  // Just start the EEPROM analyzer
+	  //
+	  calibrator.eepromData(false);
+
+	  //
+	  // List the persistent data Areas
+	  //
+	  dumpScreen.listPersistentAreas();
+
+	  //
+	  // Dump the persistent data Areas
+	  //
+	  dumpScreen.dumpPersistentAreas();
 }
 
 /*------------------------------------------------------------------------------
@@ -210,15 +309,20 @@ void ScreenHandler::draw() {
   //  I.e. it is positioned behind any other widget.
   //
 
-  /*   Currently the screen does not have any graphical features   */
+  //
+  //  Clear the screen
+  //
+  tft->fillScreen(BLACK);
 
   //
   //  Now draw all the widget with a smaller z-order.
+  //  But only the siblings. The sibling themselves decide
+  //  how to handle the draw request.
   // 
   for (Widget* sibling = child; sibling; sibling = sibling->getSibling()) {
-    sibling->draw( );
+	  if (sibling->isVisible())
+        sibling->draw( );
   }
-
 }
 
 /*------------------------------------------------------------------------------
@@ -237,16 +341,30 @@ void ScreenHandler::drawInverted( ){
  *
  *----------------------------------------------------------------------------*/
 void ScreenHandler::redraw( ){
+	Serial.println("Screen::redraw()");
 
   //
   //  Clear the entire screen
   //
-  tft->fillScreen(BLACK);
+//  tft->fillScreen(BLACK);
 
   //
-  //  Draw the entire widget tree
+  //  Draw the screens stuff first.
+  //  By its nature the screen has a Z-order which is infinite.
+  //  I.e. it is positioned behind any other widget.
   //
-  draw();
+  /* Currently there are no screen level graphical features */
+
+  //
+  //  Now draw all the widget with a smaller z-order.
+  //  But only the siblings. The sibling themselves decide
+  //  how to handle the redraw request.
+  //
+  for (Widget* sibling = child; sibling; sibling = sibling->getSibling()) {
+	  if (sibling->isVisible()) {
+        sibling->redraw( );
+	  }
+  }
 
 }
 
@@ -258,6 +376,9 @@ void ScreenHandler::redraw( ){
 void ScreenHandler::onTouch(TouchEvent* event) {
 
   // Currently silently ignore the events.
+#if DEBUG_ON_EVENT
+	  Serial.println(F("Screen touch"));
+#endif
 
 }
 
@@ -267,8 +388,9 @@ void ScreenHandler::onTouch(TouchEvent* event) {
  *
  *------------------------------------------------------------------------------------------------*/
 void ScreenHandler::onUntouch(TouchEvent* event) {
-
-  // Currently silently ignore the events.
+#if DEBUG_ON_EVENT
+	  Serial.println(F("Screen untouch"));
+#endif
 
 }
 
@@ -290,8 +412,9 @@ void ScreenHandler::onDraw(TouchEvent* event) {
  *  inactivityTime which can be set to specify the inactivity interval.
  *
  *--------------------------------------------------------------------*/
-void ScreenHandler::onActivityTimeout(TouchEvent* event) {
-	  Serial.println("Go to sleep");
+void ScreenHandler::onGotoSleep(TouchEvent* event) {
+
+  setVisible(false);
 }
 
 /*----------------------------------------------------------------------
@@ -302,23 +425,25 @@ void ScreenHandler::onActivityTimeout(TouchEvent* event) {
  *
  *--------------------------------------------------------------------*/
 void ScreenHandler::onWakeUp(TouchEvent* event) {
-  Serial.println("Wake up");
+
+  setVisible(true);
 }
 
 /*------------------------------------------------------------------------------
  * 
  *  Try to match a widget based on the coordinates.
  *  If the X, Y fall in the area occupied by the widget,
- *  the here is a match.
+ *  then here is a match.
  *
  *  event      The event to be matched
  *
- *----------------------------------------------------------------------------*/
 Widget* ScreenHandler::match(int16_t x, int16_t y) {
-  //
-  // Try to find the touched widget
-  //
-  Widget* widget = match(x, y);
+#if DEBUG_MATCH
+  Serial.print(F("ScreenHandler::dispatch match widget on (x, y) : "));
+  Serial.print(x); Serial.print(F(","));Serial.println(y);
+#endif
+
+  Widget* widget = Widget::match(x, y);
 
   //
   // If a widget was not found, then return no object
@@ -330,7 +455,10 @@ Widget* ScreenHandler::match(int16_t x, int16_t y) {
 
     return nullptr;
   }
+
+  return widget;
 }
+ *----------------------------------------------------------------------------*/
 
 /*-----------------------------------------------------------------------------------------
  *
@@ -342,14 +470,14 @@ Widget* ScreenHandler::match(int16_t x, int16_t y) {
 Widget* ScreenHandler::dispatch(TouchEvent* event) {
 
   //
-  //  Empty the event queue with later events
-  //
-  dispatchAll();
-
-  //
   //  Executed the event passed
   //
   dispatchOnly(event);
+
+  //
+  //  Empty the event queue with later events
+  //
+  dispatchAll();
 
 }
 
@@ -370,7 +498,7 @@ Widget* ScreenHandler::dispatchOnly(TouchEvent* event) {
     Serial.print(F(","));
     Serial.print(event->y);
     Serial.println(F(")"));
-  #endif
+   #endif
 
   //
   // If a widget was not found, then send it to the unsollicited event handler
@@ -395,6 +523,7 @@ Widget* ScreenHandler::dispatchOnly(TouchEvent* event) {
   do {
     #if DEBUG_DISPATCH
       Serial.println(msg);
+      Serial.print(F("Event source: widget @ 0x")); Serial.println((uint32_t)widget);
     #endif
 
     widget->onEvent(event);
@@ -515,10 +644,16 @@ const char* ScreenHandler::isType() {
 void ScreenHandler::clear(uint16_t fgColor, uint16_t bgColor) {
     
   tft->fillScreen(bgColor);
-  Screen.tft->drawFastHLine(0, 0, tft->width()-1, fgColor);
-  Screen.tft->drawFastHLine(0, tft->height()-1, tft->width()-1, fgColor);
-  Screen.tft->drawFastVLine(0, 0, tft->height()-1, fgColor);
-  Screen.tft->drawFastVLine(tft->width()-1, 0, tft->height()-1, fgColor);
+
+  //
+  //  Only draw the surrounding edge if it has another foreground color
+  //
+  if (fgColor != bgColor) {
+	  Screen.tft->drawFastHLine(0, 0, tft->width()-1, fgColor);
+	  Screen.tft->drawFastHLine(0, tft->height()-1, tft->width()-1, fgColor);
+	  Screen.tft->drawFastVLine(0, 0, tft->height()-1, fgColor);
+	  Screen.tft->drawFastVLine(tft->width()-1, 0, tft->height()-1, fgColor);
+  }
 
 }
 
@@ -547,44 +682,174 @@ void ScreenHandler::clear() {
 void ScreenHandler::fillRect( int16_t x,      int16_t y,
 		                     uint16_t width, uint16_t height,
 							 uint16_t color) {
-	if (!isVisible()) {
+
+	if (!isVisible())
 		return;
-	}
 
 	tft->fillRect(x, y, width, height, color);
 }
 
+void ScreenHandler::fillRoundRect( int16_t x,       int16_t y,
+		                          uint16_t width,  uint16_t height,
+								   int16_t radius, uint16_t color) {
+
+
+	if (!isVisible())
+		return;
+
+    tft->fillRoundRect(x, y, width, height, radius, color);
+}
+
 void ScreenHandler::fillScreen(uint16_t color) {
-    if (!isVisible()) {
-    	return;
-    }
+
+
+	if (!isVisible())
+		return;
 
     tft->fillScreen(color);
 }
 
 size_t ScreenHandler::print(char* s) {
-	if (!isVisible()) {
-		return;
-	}
+
+
+	if (!isVisible())
+		return 0;
 
 	return tft->print(s);
 }
 
 
 size_t ScreenHandler::print(char c) {
-	if (!isVisible()) {
-		return;
-	}
+
+
+	if (!isVisible())
+		return 0;
 
 	return tft->print(c);
 }
 
-size_t ScreenHandler::print(unsigned int j, int i = DEC) {
-	if (!isVisible()) {
+size_t ScreenHandler::print(const __FlashStringHelper* s) {
+
+
+	if (!isVisible())
 		return 0;
-	}
+
+	return tft->print(s);
+}
+
+size_t ScreenHandler::print(const char* (&s)) {
+
+
+	if (!isVisible())
+		return 0;
+
+	return tft->print(s);
+}
+
+size_t ScreenHandler::print(unsigned int j, int i = DEC) {
+
+
+	if (!isVisible())
+		return 0;
 
 	return tft->print(j, i);
+}
+
+size_t ScreenHandler::print(int j, int i = DEC) {
+
+	if (!isVisible())
+		return 0;
+
+	return tft->print(j, i);
+}
+
+size_t ScreenHandler::print(unsigned long j, int i = DEC) {
+
+	if (!isVisible())
+		return 0;
+
+	return tft->print(j, i);
+}
+
+size_t ScreenHandler::print(long j, int i = DEC) {
+
+	if (!isVisible())
+		return 0;
+
+	return tft->print(j, i);
+}
+
+size_t ScreenHandler::println() {
+
+	if (!isVisible())
+		return 0;
+
+	return tft->println();
+}
+
+size_t ScreenHandler::println(char* s) {
+
+	if (!isVisible())
+		return 0;
+
+	return tft->println(s);
+}
+
+
+size_t ScreenHandler::println(char c) {
+
+	if (!isVisible())
+		return 0;
+
+	return tft->println(c);
+}
+
+size_t ScreenHandler::println(const __FlashStringHelper* s) {
+
+	if (!isVisible())
+		return 0;
+
+	return tft->println(s);
+}
+
+size_t ScreenHandler::println(const char* (&s)) {
+
+	if (!isVisible())
+		return 0;
+
+	return tft->println(s);
+}
+
+size_t ScreenHandler::println(unsigned int j, int i = DEC) {
+
+	if (!isVisible())
+		return 0;
+
+	return tft->println(j, i);
+}
+
+size_t ScreenHandler::println(int j, int i = DEC) {
+
+	if (!isVisible())
+		return 0;
+
+	return tft->println(j, i);
+}
+
+size_t ScreenHandler::println(unsigned long j, int i = DEC) {
+
+	if (!isVisible())
+		return 0;
+
+	return tft->println(j, i);
+}
+
+size_t ScreenHandler::println(long j, int i = DEC) {
+
+	if (!isVisible())
+		return 0;
+
+	return tft->println(j, i);
 }
 
 /*
@@ -755,18 +1020,23 @@ size_t ScreenHandler::println(void) {
 
 }
 */
+
+int16_t ScreenHandler::getRotation() {
+
+  return tft->getRotation();
+}
+
+void ScreenHandler::setRotation(int16_t rotation) {
+
+  tft->setRotation(rotation);
+}
+
 void ScreenHandler::setTextSize(int16_t size) {
-	if (!isVisible()) {
-		return;
-	}
 
 	tft->setTextSize(size);
 }
 
 void ScreenHandler::setCursor(int16_t x, int16_t y) {
-	if (!isVisible()) {
-		return;
-	}
 
     tft->setCursor(x, y);
 }
@@ -775,10 +1045,6 @@ void ScreenHandler::getTextBounds(char* s, int16_t x, int16_t y,
 		            int16_t *xr,     int16_t *yr,
 		           uint16_t *width, uint16_t *height) {
 
-	if (!isVisible()) {
-		return;
-	}
-
 	tft->getTextBounds(s, x, y, xr, yr, width, height);
 }
 
@@ -786,17 +1052,11 @@ void ScreenHandler::getTextBounds(String s, int16_t x, int16_t y,
 		            int16_t *xr,     int16_t *yr,
 		           uint16_t *width, uint16_t *height) {
 
-	if (!isVisible()) {
-		return;
-	}
 
 	tft->getTextBounds(s, x, y, xr, yr, width, height);
 }
 
 void ScreenHandler::setTextColor(uint16_t color) {
-	if (!isVisible()) {
-		return;
-	}
 
     tft->setTextColor(color);
 }

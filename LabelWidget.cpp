@@ -1,8 +1,54 @@
 
+/*-------------------------------------------------------------------------------------------------
+
+
+       /////// ////// //////  //////   /////     /////    ////  //    //
+         //   //     //   // //   // //   //    //  //  //   // // //
+        //   ////   //////  //////  ///////    /////   //   //   //
+       //   //     //  //  // //   //   //    //   // //   //  // //
+      //   ////// //   // //   // //   //    //////    ////  //   //
+
+
+                 A R D U I N O   D I S T A N C E  S E N S O R S
+
+
+                 (C) 2024, C. Hofman - cor.hofman@terrabox.nl
+
+               <LabelWidget.cpp> - Library forGUI Widgets.
+                             16 Aug 2024
+                      Released into the public domain
+                as GitHub project: TerraboxNL/TerraBox_Widgets
+                   under the GNU General public license V3.0
+
+      This program is free software: you can redistribute it and/or modify
+      it under the terms of the GNU General Public License as published by
+      the Free Software Foundation, either version 3 of the License, or
+      (at your option) any later version.
+
+      This program is distributed in the hope that it will be useful,
+      but WITHOUT ANY WARRANTY; without even the implied warranty of
+      MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+      GNU General Public License for more details.
+
+      You should have received a copy of the GNU General Public License
+      along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+ *---------------------------------------------------------------------------*
+ *
+ *  C H A N G E  L O G :
+ *  ==========================================================================
+ *  P0001 - Initial release
+ *  ==========================================================================
+ *
+ *--------------------------------------------------------------------------*/
 #include <Terrabox_Widgets.h>
 #include <LabelWidget.h>
 
 #define DEBUG 0
+
+#define LABEL_SQUARE   RECTANGLE_SQUARE
+#define LABEL_ROUNDED  RECTANGLE_ROUNDED
+
 /*==============================================================================
  *  Creates a text label with a specific background color and an optional stroke
  *  around the label area with another color of choice.
@@ -10,43 +56,61 @@
  *  font size of the text.
  *============================================================================*/
 LabelWidget::LabelWidget( Widget* parent,
-		                  int16_t px,       int16_t py,  uint16_t pwidth, uint16_t pheight,
-		                 uint16_t textSize, char* pText, uint16_t pBgColor,
-						 uint16_t pStroke,  uint16_t pStrokeColor,
-						 uint16_t pFgColor) :
-  RectangleWidget(parent, px, py, pwidth, pheight, pBgColor, pStroke, pStrokeColor) {
+		                  uint16_t pType,
+		                  int16_t  px,       int16_t py,  uint16_t pwidth, uint16_t pheight,
+		                  uint16_t textSize, char* pText, uint16_t pBgColor,
+						  uint16_t pStroke,  uint16_t pStrokeColor,
+						  uint16_t pFgColor) :
+  RectangleWidget(parent, pType, px, py, pwidth, pheight, pBgColor, pStroke, pStrokeColor) {
 
-  //
-  //  Set the text
-  //
-  strcpy(text, pText);
+  init(textSize, pText, pFgColor);
 
-  //
-  //  Font size
-  //
-  size = textSize;
-  // Serial.println("(1) LabelWidget::Textsize: " + String(textSize));
+}
 
-  //
-  //  Set the colors
-  //
-  bgColor = pBgColor;
-  fgColor = pFgColor;
+LabelWidget::LabelWidget( Widget* parent,
+		                  int16_t  px,       int16_t py,  uint16_t pwidth, uint16_t pheight,
+		                  uint16_t textSize, char* pText, uint16_t pBgColor,
+						  uint16_t pStroke,  uint16_t pStrokeColor,
+						  uint16_t pFgColor) :
+		  RectangleWidget(parent, LABEL_SQUARE, px, py, pwidth, pheight, pBgColor, pStroke, pStrokeColor) {
 
-  //
-  //  Shrink the text if it will not fit in the space of the are specified.
-  //
-  while (size > 1) {
-    Screen.setTextSize(size);
-    uint16_t xr, yr, textWidth, textHeight;
-    Screen.getTextBounds("W", x, y, &xr, &yr, &textWidth, &textHeight);
-//    Serial.println("label height vs. text height [" + String(size) + "]: " + (height) + "/" + textHeight);
-    if (textHeight < (height - 2 * stroke - 4)) {
-//      Serial.println("Selected text size: " + String(size));
-      break;
-    }
-    size--;
-  }
+	  init(textSize, pText, pFgColor);
+}
+
+void LabelWidget::init(uint16_t textSize,
+		               char*    pText,
+		               uint16_t pFgColor) {
+
+	  strcpy(nameId, "LabelWidget");
+	  widgetSize = sizeof(LabelWidget);
+
+	  //
+	  //  Set the text
+	  //
+	  strncpy(text, pText, sizeof(text)-1);
+
+	  //
+	  //  Font size
+	  //
+	  size = textSize;
+
+	  //
+	  //  Set the colors
+	  //
+	  fgColor = pFgColor;
+
+	  //
+	  //  Shrink the text if it will not fit in the space of the are specified.
+	  //
+	  while (size > 1) {
+	    Screen.setTextSize(size);
+	    uint16_t xr, yr, textWidth, textHeight;
+	    Screen.getTextBounds("W", x, y, &xr, &yr, &textWidth, &textHeight);
+	    if (textHeight < (height - 2 * stroke - 4)) {
+	      break;
+	    }
+	    size--;
+	  }
 }
 
 /*-------------------------------------------------------------------------------
@@ -59,7 +123,22 @@ LabelWidget::LabelWidget( Widget* parent,
  *  text    The text to be displayed
  *-----------------------------------------------------------------------------*/
 void LabelWidget::setText(char* newText) {
-   clear();
+
+   //
+   //  No update if value did not change
+   //
+   if (!strcmp(text, newText))
+	 return;
+
+   //
+   //  Even though we are invisible, we still have to remember the text set!!!
+   //
+   if (!isVisible()) {
+	 strncpy(text, newText, sizeof(text)-1);
+	 return;
+   }
+
+   clearText();
 
   //
   //  If no text, then skip right to the end.
@@ -71,7 +150,6 @@ void LabelWidget::setText(char* newText) {
     Screen.getTextBounds(newText, x, y, &xr, &yr, &textWidth, &textHeight);
 
     //  Center the text and show it.
-    Screen.setTextSize(size);
     Screen.setTextColor(inverted ? ~fgColor : fgColor);
     Screen.setCursor(centerX - textWidth/2, centerY - round(float(textHeight/2.0)));
     Screen.print(newText);
@@ -90,7 +168,7 @@ void LabelWidget::setText(char* newText) {
  *  Effectively it redraws the background including the strokes around it.
  *
  *-----------------------------------------------------------------------------*/
-void LabelWidget::clear() {
+void LabelWidget::clearText() {
   if (text != nullptr && text[0] != '\0') {
 	  uint16_t xr, yr, textWidth, textHeight;
 	  Screen.getTextBounds(text, x, y, &xr, &yr, &textWidth, &textHeight);
@@ -108,7 +186,7 @@ void LabelWidget::clear() {
  *  This is a hack due to trouble printing the % sign
  *
  *-----------------------------------------------------------------------------*/
-void LabelWidget::clearPercent() {
+void LabelWidget::clearPercentText() {
   if (text != nullptr && text[0] != '\0') {
 	  uint16_t xr, yr, textWidth, textHeight;
 	  Screen.getTextBounds(text, x, y, &xr, &yr, &textWidth, &textHeight);
@@ -128,25 +206,40 @@ void LabelWidget::clearPercent() {
  *
  *-----------------------------------------------------------------------------*/
 void LabelWidget::setTextPercent(char* newText) {
+
   //
-  //  First pf all set the text size
+  //  No update if value did not change
   //
-  Screen.setTextSize(size);
+  if (!strcmp(text, newText))
+	  return;
+
+  //
+  //  Even though we are invisible, we still have to remember the text set!!!
+  //
+  if (!isVisible()) {
+	strncpy(text, newText, sizeof(text)-1);
+    return;
+  }
 
   //
   //  Clear the current text
   //
-  clearPercent();
+  clearPercentText();
+
+  //
+  //  First pf all set the text size
+  //
+//  Screen.setTextSize(size);
 
   //
   //  If no text, then skip right to the end.
   //
   if (newText != nullptr && newText[0] != '\0') {
     // Establish the width
+	Screen.setTextSize(size);
     uint16_t xr, yr, textWidth, textHeight;
     Screen.getTextBounds(newText, x, y, &xr, &yr, &textWidth, &textHeight);
 
-    Screen.setTextSize(size);
     Screen.setTextColor(inverted ? ~fgColor : fgColor);
     Screen.setCursor(centerX - textWidth/2, centerY - round(float(textHeight/2.0)));
     Screen.print(newText);
@@ -159,6 +252,17 @@ void LabelWidget::setTextPercent(char* newText) {
     strncpy(text, newText, sizeof(text)-1);
 }
 
+/**----------------------------------------------------------------------------
+ *
+ *  Returns the current text of the label
+ *
+ *  @return   The current label text.
+ *
+ *---------------------------------------------------------------------------*/
+const char * LabelWidget::getText() {
+	return text;
+}
+
 /*-------------------------------------------------------------------------------
  *
  *  Draws the widget including the currenr or last text that was displayed.
@@ -166,6 +270,9 @@ void LabelWidget::setTextPercent(char* newText) {
  *
  *-----------------------------------------------------------------------------*/
 void LabelWidget::draw() {
+
+  if (! isVisible())
+	  return;
 
   RectangleWidget::draw();
   //
@@ -184,15 +291,25 @@ void LabelWidget::draw() {
 }
 
 void LabelWidget::redraw() {
+
+  if (! isVisible()) {
+    return;
+  }
+
   if (!inverted) {
 	  draw();
   }
   else {
 	  drawInverted();
   }
+
 }
 
 void LabelWidget::drawInverted() {
+
+	if (! isVisible())
+	  return;
+
 
 	RectangleWidget::drawInverted();
 
@@ -211,12 +328,4 @@ void LabelWidget::drawInverted() {
 	setText(newText);
 
 }
-
-/*
-void LabelWidget::cpyTxt(char *s1, char *s2) {
-	while (s2) {
-		*s1++ = *s2++;
-	}
-}
-*/
 

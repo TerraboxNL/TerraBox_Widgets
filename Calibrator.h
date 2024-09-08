@@ -1,35 +1,48 @@
 /*-------------------------------------------------------------------------------------------------
 
 
-       ///////  ////////  ///////   ///////    //////       //////     /////    //    //
-         //    //        //    //  //    //  //    //      //   //   //    //   // //
-        //    //////    ///////   ///////   ////////      //////    //    //     //
-       //    //        //  //    //  //    //    //      //    //  //    //    // //
-      //    ////////  //    //  //    //  //    //      ///////     /////    //   //
 
-     
-                           A R D U I N O   G U I   W I D G E T S
+       /////// ////// //////  //////   /////     /////    ////  //    //
+         //   //     //   // //   // //   //    //  //  //   // // //
+        //   ////   //////  //////  ///////    /////   //   //   //
+       //   //     //  //  // //   //   //    //   // //   //  // //
+      //   ////// //   // //   // //   //    //////    ////  //   //
 
 
-                             (C) 2024, cor.hofman@terrabox.nl
+                  A R D U I N O   G U I   W I D G E T S
 
-                       <Calibrator.h> - Library for GUI widgets.
-                          Created by Cor Hofman, June 30, 2024
-                            Released into the public domain
-                              as GitHub project: TBH_A_GUI
-                       under the GNU General public license V3.0
-                          
+
+                    (C) 2024, cor.hofman@terrabox.nl
+
+                <Calibrator.h> - Library for GUI widgets.
+                            June 30, 2024
+                    Released into the public domain
+               as GitHub project: TerraboxNL/TerraBox_Widgets
+                 under the GNU General public license V3.0
+
+      This program is free software: you can redistribute it and/or modify
+      it under the terms of the GNU General Public License as published by
+      the Free Software Foundation, either version 3 of the License, or
+      (at your option) any later version.
+
+      This program is distributed in the hope that it will be useful,
+      but WITHOUT ANY WARRANTY; without even the implied warranty of
+      MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+      GNU General Public License for more details.
+
+      You should have received a copy of the GNU General Public License
+      along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
  *------------------------------------------------------------------------------------------------*
  *
  *  C H A N G E  L O G :
  *  ============================================================================================
- *  P0001 - Initial release 
+ *  P0001 - Initial release
  *  ============================================================================================
  *
  *------------------------------------------------------------------------------------------------*/
 #include <TerraBox_Widgets.h>
-#include <persistence.h>
+#include <Persistence.h>
 
 #ifndef CALIBRATOR_h
 #define CALIBRATOR_h
@@ -51,8 +64,6 @@ class Calibrator : public Widget {
                             uint16_t color);
     void drawCalibrationMarkers();
 
-    void setCalibrated(bool b);                    // Set the calibration indicator
-
     uint16_t getAxisValue(   XY*     theTouch,     // Get the specific data either raw x or y position 
                              char    axis);
     uint16_t calibrateMarker(
@@ -70,7 +81,9 @@ class Calibrator : public Widget {
 
     void explain();                                   // Provides explanation
     bool isCalibrated();                              // Returns true if the TFT has been calibrated
+    void setCalibrated(bool b);                       // Set the calibration indicator
     void recalibrate();                               // Makes calibrate recalibrate the TFT screen
+
     void draw();                                      // Draws the calibration grid
     void drawInverted();                              // Not used but must be there
     void redraw();                                    // Redraws the calibration grid
@@ -89,7 +102,8 @@ class Calibrator : public Widget {
     void     printMarkerBuffer(char*     title,       // Prints the contents of a marker buffer
                                uint16_t* buffer, 
                                uint16_t  size);
-    void     eepromData();                            // Prints data stored in EEPROM
+    void     eepromData(bool b);                      // Shows data stored in EEPROM, if false
+    void     eepromData();                            // Shows data stored in EEPROM optionally
     void     displayXYTouch(XY* xy);                  // Displays the coordinates in the left top corner
     void     diagnostics();                           // Executes some diagnostics tests
 

@@ -1,38 +1,45 @@
 /*-------------------------------------------------------------------------------------------------
 
 
-       ///////  ////////  ///////   ///////    //////       //////     /////    //    //
-         //    //        //    //  //    //  //    //      //   //   //    //   // //
-        //    //////    ///////   ///////   ////////      //////    //    //     //
-       //    //        //  //    //  //    //    //      //    //  //    //    // //
-      //    ////////  //    //  //    //  //    //      ///////     /////    //   //
+       /////// ////// //////  //////   /////     /////    ////  //    //
+         //   //     //   // //   // //   //    //  //  //   // // //
+        //   ////   //////  //////  ///////    /////   //   //   //
+       //   //     //  //  // //   //   //    //   // //   //  // //
+      //   ////// //   // //   // //   //    //////    ////  //   //
 
      
-                           A R D U I N O   G U I   W I D G E T S
+                 A R D U I N O   D I S T A N C E  S E N S O R S
 
 
-                             (C) 2024, cor.hofman@terrabox.nl
+                 (C) 2024, C. Hofman - cor.hofman@terrabox.nl
 
-                       <TerraBox_Widgets.h> - Library for GUI widgets.
-                          Created by Cor Hofman, June 30, 2024
-                            Released into the public domain
-                              as GitHub project: TBH_A_GUI
-                       under the GNU General public license V3.0
+               <TerraBox_Widgets.h> - Library forGUI Widgets.
+                                16 Aug 2024
+                      Released into the public domain
+                as GitHub project: TerraboxNL/TerraBox_Widgets
+                   under the GNU General public license V3.0
                           
+      This program is free software: you can redistribute it and/or modify
+      it under the terms of the GNU General Public License as published by
+      the Free Software Foundation, either version 3 of the License, or
+      (at your option) any later version.
 
- *------------------------------------------------------------------------------------------------*
+      This program is distributed in the hope that it will be useful,
+      but WITHOUT ANY WARRANTY; without even the implied warranty of
+      MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+      GNU General Public License for more details.
+
+      You should have received a copy of the GNU General Public License
+      along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+ *---------------------------------------------------------------------------*
  *
  *  C H A N G E  L O G :
- *  ============================================================================================
+ *  ==========================================================================
  *  P0001 - Initial release 
- *  ============================================================================================
+ *  ==========================================================================
  *
- *------------------------------------------------------------------------------------------------*/
-/*
-	TerraBox_Widgets.h - Library for GUI widgets.
-	Created by Cor Hofman, June 30, 2024
-	Release into the public domain.
- */
+ *--------------------------------------------------------------------------*/
 #ifndef TERRABOX_WIDGETS_h
 #define TERRABOX_WIDGETS_h
 
@@ -72,11 +79,14 @@
 
           int16_t  x;
           int16_t  y;
+          int16_t  z;  // Pressure
 
          };
 
          extern bool        getTouchData(XY* data);
          extern bool        getRawTouchData(XY* data);
+         extern void        waitForATap();
+         extern bool        countDownWait(uint16_t seconds);
          extern TouchScreen ts;
 
 /////                                                                          /////
@@ -135,7 +145,7 @@ class BufferUInt {
   private:
     uint16_t buffer[128];
 
-    int nextOne;		// Index to next one to be returned 	
+    int nextOne;	// Index to next one to be returned
     int nextFree;	// Index to next free position in the buffer
     int capacity;	// Capacity in terms of not occupied slots
     int overflow;	// The amount of overflows that occurred
@@ -144,7 +154,7 @@ class BufferUInt {
     BufferUInt();
 
     int16_t  put(uint16_t i);	// Store a value
-    uint16_t get();		// Get a value, destructively
+    uint16_t get();		        // Get a value, destructively
 };
 
 /*============================================================================
@@ -187,8 +197,10 @@ class TouchEvents {
     static const uint16_t DRAW                = 3;  // The screen is still touched and the X, Y differ from the previous touch.
     static const uint16_t TTY_INSCOPE         = 4;  // A widget is in scope of the TTY
     static const uint16_t TTY_OUTOFSCOPE      = 5;  // A widget is out of scope of the TTY
-    static const uint16_t INACTIVITY_TIMEOUT  = 6;  // Inactivity timeout
+    static const uint16_t GOTO_SLEEP          = 6;  // Inactivity timeout
     static const uint16_t WAKEUP              = 7;  // Wake up event
+    static const uint16_t IN_SCOPE            = 8;  // A touch was detected in of scope of a widget, which was formerly out of scope.
+    static const uint16_t OUT_OF_SCOPE        = 9;  // A touch was detected out of scope for a formerly in scope widget.
 };
 
 /*============================================================================
@@ -215,6 +227,24 @@ class TouchEvent {
                int16_t       pY,
                EventSource*  source 
              );
+
+    TouchEvent(
+               uint16_t      pEvent,
+               unsigned long timeStamp,
+               int16_t       pX,
+               int16_t       pY,
+               EventSource*  source,
+			   bool          passOn
+             );
+
+    void init(
+               uint16_t      pEvent,
+               unsigned long timeStamp,
+               int16_t       pX,
+               int16_t       pY,
+               EventSource*  source,
+			   bool          passOn
+    		);
 
     EventSource* getSource();
 
@@ -304,10 +334,18 @@ class Area : public EventSource {
  *===========================================================================*/
 class Widget : public Area {
   protected:
+    static uint32_t idCount;  // Initialized in the Widget.cpp file !!!!
 
     void calculateCenter();
 
   public:
+    //
+    // Unique widget id.
+    uint32_t id;
+
+    char      nameId[16]  = "Widget";
+    uint16_t  widgetSize  = sizeof(Widget);
+
     //
     //  Drawing
     //
@@ -317,12 +355,12 @@ class Widget : public Area {
     //
     //  Widget tree
     //
-    Widget* parent;	// The parent widget
-    Widget* child;	// List of children
-    Widget* sibling;	// List of siblings
+    Widget* parent  = nullptr;	// The parent widget
+    Widget* child   = nullptr;	// List of children
+    Widget* sibling = nullptr;	// List of siblings
 
     //
-    //  Facilitairy
+    //  Facilitary
     //
     char*   logMsg;
 
@@ -348,6 +386,7 @@ class Widget : public Area {
     //
     void            add(Widget* w);
     void            remove(Widget* w);
+    void            remove();
     Widget*         getParent();
     void            setParent(Widget* pParent);
     Widget*         getChild();
@@ -360,7 +399,7 @@ class Widget : public Area {
     virtual Widget* match(int16_t pX, int16_t pY);
 
     //
-    //  Visualisation
+    //  Visualization
     //
     virtual void    clear();
     virtual void    draw()         = 0;
@@ -379,8 +418,15 @@ class Widget : public Area {
     virtual void    onTtyInScope(TouchEvent* event);
     virtual void    onTtyOutOfScope(TouchEvent* event);
     virtual void    onUnsollicitedEvent(TouchEvent* event);
-    virtual void    onActivityTimeout(TouchEvent* event);
+    virtual void    onGotoSleep(TouchEvent* event);
     virtual void    onWakeUp(TouchEvent* event);
+    virtual void    onInScope(TouchEvent* event);
+    virtual void    onOutOfScope(TouchEvent* event);
+
+    virtual void    tree();
+    virtual void    tree(int level);
+    virtual void    path();
+    virtual void    path(int level);
 
     virtual const char* isType();
 
@@ -421,7 +467,9 @@ class ScreenHandler : public Widget {
 
     ScreenHandler(MCUFRIEND_kbv* pTft);
 
-            void    begin();
+            void    begin();                           // Bare bones TFT begin
+            void    beginFull();                       // Productized TFT begin
+            void    analyzeEEPROM();                   // Analyze EEPROM memory
             Widget* dispatch(TouchEvent* event);       // Dispatches pending later events and then offered event
             void    dispatchLater(TouchEvent* event);  // Dispatches pending later events and then offered event
             boolean dispatch();                        // Dispatch a single later event from the queue		
@@ -431,13 +479,13 @@ class ScreenHandler : public Widget {
             void    drawInverted();
             void    drawSibling(Widget* child);
 
-    virtual void onTouch(TouchEvent* event);
-    virtual void onUntouch(TouchEvent* event);
-    virtual void onDraw(TouchEvent* event);          
-    virtual void onActivityTimeout(TouchEvent* event);
-    virtual void onWakeUp(TouchEvent* event);
+    virtual void    onTouch(TouchEvent* event);
+    virtual void    onUntouch(TouchEvent* event);
+    virtual void    onDraw(TouchEvent* event);
+    virtual void    onGotoSleep(TouchEvent* event);
+    virtual void    onWakeUp(TouchEvent* event);
 
-    Widget* match(int16_t x, int16_t y);
+//    Widget* match(int16_t x, int16_t y);
     virtual const char*   isType();
 
     void clear(uint16_t fgColor, uint16_t bgColor);    // Clears the screen with an edge
@@ -448,15 +496,35 @@ class ScreenHandler : public Widget {
     //  GFX methods
     //
     //-------------------------------------------------------------------------
-    void fillRect(int16_t x, int16_t y,
-    		      uint16_t width, uint16_t height,
-				  uint16_t color);
+    void fillRect(      int16_t  x,      int16_t y,
+    		           uint16_t  width, uint16_t height,
+				       uint16_t  color);
+
+    void fillRoundRect( int16_t  x,       int16_t y,
+    		            uint16_t width,  uint16_t height,
+    					int16_t  radius, uint16_t color);
 
     void fillScreen(uint16_t color);
 
+    size_t print(const char* (&s));
+    size_t print(const __FlashStringHelper* s);
     size_t print(char* s);
     size_t print(char c);
     size_t print(unsigned int j, int i = DEC);
+    size_t print(int j, int i = DEC);
+    size_t print(unsigned long int j, int i = DEC);
+    size_t print(long int j, int i = DEC);
+
+    size_t println();
+    size_t println(const char* (&s));
+    size_t println(const __FlashStringHelper* s);
+    size_t println(char* s);
+    size_t println(char c);
+    size_t println(unsigned int j, int i = DEC);
+    size_t println(int j, int i = DEC);
+    size_t println(unsigned long int j, int i = DEC);
+    size_t println(long int j, int i = DEC);
+
 /*
     size_t print(const __FlashStringHelper *);
     size_t print(const String & s);
@@ -482,20 +550,23 @@ class ScreenHandler : public Widget {
     size_t println(const Printable& p);
     size_t println(void);
 */
-    void setTextSize(int16_t s);
-    void setCursor(int16_t x, int16_t y);
+    int16_t getRotation();
+    void    setRotation(int16_t s);
+    int16_t getTextSize();
+    void    setTextSize(int16_t s);
+    void    setCursor(int16_t x, int16_t y);
 
-    void getTextBounds(char* s,
+    void    getTextBounds(char* s,
                   int16_t x, int16_t y,
                   int16_t *xr, int16_t *yr,
                   uint16_t *width, uint16_t *height);
 
-    void getTextBounds(String s,
+    void    getTextBounds(String s,
                   int16_t x, int16_t y,
                   int16_t *xr, int16_t *yr,
                   uint16_t *width, uint16_t *height);
 
-    void setTextColor(uint16_t strokeColor);
+    void    setTextColor(uint16_t strokeColor);
 };
 
 extern ScreenHandler Screen;
@@ -560,7 +631,7 @@ class TouchHandler : public Task {
 
     public:
 
-    uint32_t  inactivityTimeout  = 300000;           // Inactivity interval after which it is signaled
+    uint32_t  inactivityTimeout  = 300000;         // Inactivity interval after which it is signaled
 
     //==============================================================================================
 
@@ -577,7 +648,7 @@ class TouchHandler : public Task {
     //----------------------------------------------------------------------------------------------
     //  Touch detection
     //----------------------------------------------------------------------------------------------
-    TouchEvent*     digest();	                   // Translate touches into TouchEvents and dispatch them.
+    bool            digest();	                   // Translate touches into TouchEvents and dispatch them.
 
     bool            getTouch(XY* touchData);       // Returns touch position in screen coordinates
 

@@ -7,6 +7,7 @@
 		<project>Adafruit_TFTLCD_Library</project>
 		<project>Adafruit_TouchScreen</project>
 		<project>MCUFriend_kbv</project>
+		<project>TerraBox_Persistence</project>
 		<project>TerraBox_Scheduler</project>
 	</projects>
 	<buildSpec>

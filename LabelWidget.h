@@ -46,8 +46,12 @@
 #ifndef LABELWIDGET_h
 #define LABELWIDGET_h
 
-#define LABEL_SQUARE    1
-#define LABEL_ROUNDED   2
+#define LABEL_SQUARE    1       // Draw with square corners
+#define LABEL_ROUNDED   2       // Draw with rounded corners
+
+#define LABEL_LEFT      1		// Left justified
+#define LABEL_RIGHT     2		// Right justified
+#define LABEL_CENTER    3		// Centered
 
 /*============================================================================
  *  L A B E L  W I D G E T
@@ -92,6 +96,7 @@ class  LabelWidget : public RectangleWidget {
     void         setTextInverterPercent(String text);
     void         setText(char* text, int16_t color);
     void         setTextPercent(char* text, int16_t color);
+    void         printText(char* text, uint16_t size, uint16_t align);
 
     uint16_t     getFgColor();
 

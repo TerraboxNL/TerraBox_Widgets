@@ -155,6 +155,14 @@ void BarWidget::update(uint16_t percentage) {
 	}
 
 	//
+	// Limit the range to 0 - 100
+	//
+	if (percentage < 0)
+		percentage = 0;
+	else if (percentage > 100)
+		percentage = 100;
+
+	//
 	// No update needed
 	//
 	if (oldPercentage == percentage)

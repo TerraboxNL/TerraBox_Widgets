@@ -85,7 +85,8 @@ void LabelWidget::init(uint16_t textSize,
 	  widgetSize = sizeof(LabelWidget);
 
 	  //
-	  //  Set the text
+	  //  Copy the text to be sure it will not be corrupted!!!
+	  //  This happens for instance if the string is allocated on the stack.
 	  //
 	  strncpy(text, pText, sizeof(text)-1);
 
@@ -106,11 +107,102 @@ void LabelWidget::init(uint16_t textSize,
 	    Screen.setTextSize(size);
 	    uint16_t xr, yr, textWidth, textHeight;
 	    Screen.getTextBounds("W", x, y, &xr, &yr, &textWidth, &textHeight);
-	    if (textHeight < (height - 2 * stroke - 4)) {
+	    if (textHeight < (height - 2 * stroke - 4) && textWidth < (width - 2*stroke - 4)) {
 	      break;
 	    }
 	    size--;
 	  }
+}
+
+/**----------------------------------------------------------------------------
+ *
+ *  Calculates the width and height needed for the text given a text size
+ *
+ *  @param text         The text
+ *  @param size         The text size to calculate with
+ *  @param align        Text alignment
+ *
+ *---------------------------------------------------------------------------*/
+void LabelWidget::printText(char* text,
+		   uint16_t size, uint16_t align = LABEL_CENTER) {
+
+    Screen.setTextSize(size);
+    Screen.setTextColor(inverted ? ~fgColor : fgColor);
+
+    int16_t textLength = strlen(text);
+
+    char buff[80];  //  Buffer containing a single line of text
+
+    //
+    //  Count the number of lines
+    //
+    uint16_t lines = 1;
+    for (int i = 0; i < textLength; i++) {
+    	if (text[i] == '\n')
+    		lines++;
+    }
+
+    //
+    //  Calculate the text width and text height
+    //
+    int16_t j = 0;
+    uint16_t line = 0;
+    while (j < textLength) {
+      for (int i = 0; i <= textLength; i++) {
+
+        //
+    	//  Do we have an end of line?
+    	//  In that case we calculate the width & height of this line
+    	//
+    	if (text[j] == '\n' || text[j] == '\0') {
+          buff[i] = '\0';
+
+          //
+          //  Calculate the width and height
+          //
+          uint16_t xr, yr, tw, th;
+          Screen.getTextBounds(buff, x, y, &xr, &yr, &tw, &th);
+
+    	  //
+    	  // If the text must be printed, then do that.
+    	  //
+  		  switch (align) {
+  		    case LABEL_RIGHT: {  // Right justified
+      	      Screen.setCursor((x + width - 2 * stroke) - tw, centerY - round((float)(line * th)/2.0) + lines * th);
+ 			  break;
+  		    }
+  		    case LABEL_CENTER: {  // Centered
+  	    	  Screen.setCursor(centerX - tw/2, centerY - round((float)(lines * th)/2.0) + line * th);
+  			  break;
+  		    }
+  		    default: { // Left justified (LABEL_LEFT)
+    	      Screen.setCursor(x + 2* stroke,  centerY - round((float)(lines * th)/2.0) + line * th);
+  		    }
+  		  }
+
+  	      Screen.print(buff);
+  	      line++;
+
+          //
+          //  Return if we have reached the end of the text
+          //
+          if (text[j] == '\0')
+        	  return;
+
+          //
+          //  Break out of this loop, to start with the next text line
+          //
+          j++;
+          break;
+    	}
+
+    	//
+    	//  Copy the character
+    	//
+        buff[i] = text[j];
+        j++;
+      }
+    }
 }
 
 /*-------------------------------------------------------------------------------
@@ -146,20 +238,24 @@ void LabelWidget::setText(char* newText) {
   if (newText != nullptr && newText[0] != '\0') {
     // Establish the width
     Screen.setTextSize(size);
-    uint16_t xr, yr, textWidth, textHeight;
-    Screen.getTextBounds(newText, x, y, &xr, &yr, &textWidth, &textHeight);
 
-    //  Center the text and show it.
-    Screen.setTextColor(inverted ? ~fgColor : fgColor);
-    Screen.setCursor(centerX - textWidth/2, centerY - round(float(textHeight/2.0)));
-    Screen.print(newText);
-  }
+    int16_t textWidth  = 0;
+    int16_t textHeight = 0;
 
-  if (newText == nullptr)
-	text[0] = '\0';
-  else
+    //
+    //  Calculate the text dimensions
+    //
+    printText(newText, size, LABEL_CENTER);
+
+    //
+    //  Save the text for possible refreshment if TFT wakes up from sleep mode
+    //
     strncpy(text, newText, sizeof(text)-1);
-
+  }
+  else {
+	clearText();
+  	text[0] = '\0';
+  }
 }
 
 /*-------------------------------------------------------------------------------
